@@ -1,6 +1,6 @@
 # Aegean AIS Analysis
 
-This repository collects live AIS position reports and static ship data from Turkish coastal waters using the AISStream.io WebSocket API.
+This repository collects live AIS position reports and static ship data from Turkish and Greekcoastal waters using the AISStream.io WebSocket API.
 
 ## Setup
 
