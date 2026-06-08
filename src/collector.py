@@ -21,8 +21,11 @@ load_dotenv()
 API_KEY = os.getenv("AISSTREAM_API_KEY")
 
 # AISStream format: [min_lat, min_lon], [max_lat, max_lon]
-# Ege Denizi tam kapsam — Çanakkale'den Rodos'a, Türkiye-Yunanistan arası
-BOUNDING_BOX = [[36.0, 22.0], [41.5, 29.0]]
+# Güney Türk Ege kıyısı: Bodrum–Marmaris–Datça–Rodos koridoru
+# NOT: AISStream.io ücretsiz planında İzmir/Çeşme/Kuşadası bölgesinde
+# yeterli alıcı istasyonu yok; kuzey (Marmara/Çanakkale) ayrı bir bölgedir.
+# Bu bounding box gerçek kapsam alanını yansıtır.
+BOUNDING_BOX = [[36.0, 26.5], [38.0, 29.0]]
 
 WEBSOCKET_URL = "wss://stream.aisstream.io/v0/stream"
 

@@ -43,7 +43,28 @@ COLORS = {
 
 # ── Veri yükleme ──────────────────────────────────────────────────────────────
 
+COVERAGE_NOTE = """
+╔══════════════════════════════════════════════════════════════════╗
+║  VERİ KAPSAM UYARISI — okumadan analiz etme                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Kapsam alanı : Güney Türk Ege — Bodrum / Marmaris / Datça /    ║
+║                 Kos / Rodos koridoru                             ║
+║  Koordinatlar : lat 36.0–38.0°N · lon 26.5–29.0°E              ║
+║                                                                  ║
+║  DIŞARIDA KALANLAR (kapsam boşluğu, kod hatası değil):          ║
+║  · İzmir Körfezi, Çeşme, Kuşadası (38–38.5°N) →                ║
+║      AISStream.io ücretsiz planında alıcı yok                   ║
+║  · Yalıkavak / Turgutreis (37.1–37.2°N) → sinyal zayıf         ║
+║  · Marmara Denizi / Çanakkale (41°N) → ayrı deniz havzası,      ║
+║      bu analize dahil edilmedi                                   ║
+║                                                                  ║
+║  Örneklem : ~60 dakika · akşam saatleri (19:00–20:00 UTC+3)     ║
+║  Feribot ve yat sayısı sabah/öğle verisiyle değişebilir.        ║
+╚══════════════════════════════════════════════════════════════════╝
+"""
+
 def load_data() -> pd.DataFrame:
+    print(COVERAGE_NOTE)
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql("SELECT * FROM ais_clean", conn, dtype={"mmsi": str})
     conn.close()

@@ -17,10 +17,23 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 RAW_DIR  = DATA_DIR / "raw"
 DB_PATH  = DATA_DIR / "ais_aegean.db"
 
-# ── Türk karasuları sınırı ────────────────────────────────────────────────────
-# 26°E doğusu = Türk Ege kıyı şeridi (İzmir, Bodrum, Marmaris, Çanakkale hattı)
-# Metodolojik not: Hukuki 6 deniz mili sınırı yerine pratik lon eşiği kullanılıyor.
-TURKEY_LON_MIN = 26.0
+# ── Coğrafi kapsam sınırı ─────────────────────────────────────────────────────
+# Gerçek AIS kapsam alanı: Bodrum–Marmaris–Datça–Rodos koridoru
+#
+# NEDEN BU SINIRLAR?
+# - AISStream.io ücretsiz planı Türk orta Ege kıyısında (İzmir 38.4°N,
+#   Çeşme 38.3°N, Kuşadası 37.8°N) yeterli alıcı kapsamına sahip değil.
+#   Bu bölgelerden sinyal gelmiyor — veri boşluğu, kod hatası değil.
+# - Kuzey sınırı (lat > 38°N): Marmara Denizi ve Çanakkale Boğazı trafiğini
+#   dışarıda bırakır; bu bölge Ege değil, ayrı bir deniz havzasıdır.
+# - Boylam alt sınırı (lon >= 26.5°E): Yunanistan anakarası ve büyük Ege
+#   adalarının büyük bölümünü eliyor.
+#
+# GERÇEK KAPSAM: Güney Türk Ege — Bodrum yarımadası, Marmaris körfezi,
+# Datça yarımadası ve yakın Yunan adaları (Kos, Rodos, Symi) koridoru.
+LON_MIN = 26.5
+LAT_MIN = 36.0
+LAT_MAX = 38.0
 
 # ── ShipType kod → kategori eşleştirmesi ─────────────────────────────────────
 # IMO/ITU AIS standart kodları (0-99)
@@ -174,9 +187,13 @@ def clean_data(conn: sqlite3.Connection) -> pd.DataFrame:
     ]
     print(f"Koordinat filtresi sonrası : {len(df):,}")
 
-    # Türk karasuları filtresi
-    df = df[df["longitude"] >= TURKEY_LON_MIN]
-    print(f"Türk karasuları (lon≥26°E) : {len(df):,}")
+    # Coğrafi kapsam filtresi — gerçek AIS kapsam alanı
+    df = df[
+        (df["longitude"] >= LON_MIN) &
+        (df["latitude"].between(LAT_MIN, LAT_MAX))
+    ]
+    print(f"Kapsam filtresi sonrası    : {len(df):,}  "
+          f"(lon≥{LON_MIN}°E, lat {LAT_MIN}–{LAT_MAX}°N)")
 
     # Fiziksel olarak imkânsız hız değerleri
     df = df[df["speed_knots"].isna() | (df["speed_knots"] <= 50)]
