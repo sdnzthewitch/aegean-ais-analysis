@@ -18,19 +18,24 @@ RAW_DIR  = DATA_DIR / "raw"
 DB_PATH  = DATA_DIR / "ais_aegean.db"
 
 # ── Coğrafi kapsam sınırı ─────────────────────────────────────────────────────
-# Gerçek AIS kapsam alanı: Bodrum–Marmaris–Datça–Rodos koridoru
 #
-# NEDEN BU SINIRLAR?
-# - AISStream.io ücretsiz planı Türk orta Ege kıyısında (İzmir 38.4°N,
-#   Çeşme 38.3°N, Kuşadası 37.8°N) yeterli alıcı kapsamına sahip değil.
-#   Bu bölgelerden sinyal gelmiyor — veri boşluğu, kod hatası değil.
-# - Kuzey sınırı (lat > 38°N): Marmara Denizi ve Çanakkale Boğazı trafiğini
-#   dışarıda bırakır; bu bölge Ege değil, ayrı bir deniz havzasıdır.
-# - Boylam alt sınırı (lon >= 26.5°E): Yunanistan anakarası ve büyük Ege
-#   adalarının büyük bölümünü eliyor.
+# KAPSAM: Bodrum–Kos–Rodos deniz koridoru
+# (Türk-Yunan Ege sınır hattındaki açık deniz trafiği)
 #
-# GERÇEK KAPSAM: Güney Türk Ege — Bodrum yarımadası, Marmaris körfezi,
-# Datça yarımadası ve yakın Yunan adaları (Kos, Rodos, Symi) koridoru.
+# BU SINIRLAR NEDEN SEÇİLDİ?
+# AISStream.io ham verisi incelendiğinde (bkz. data exploration):
+#   - En büyük küme 38°N/24°E = Pire/Atina → Türk analizi dışı
+#   - 41°N/29°E kümesi = İstanbul Boğazı → ayrı deniz havzası, dışı
+#   - 37°N/27-28°E kümesi = Bodrum–Kos–Rodos arası → gerçek kapsam
+#
+# DIŞARIDA KALAN TÜRK LİMANLARI (AISStream alıcısı yok):
+#   - İzmir (38.4°N), Çeşme (38.3°N), Kuşadası (37.8°N)
+#   - Çanakkale (40.1°N), Yalıkavak/Turgutreis (37.1–37.2°N)
+#
+# BU KISIT NEDEN ÖNEMLİ?
+# Veri aslında "Türk kıyıları" değil, Türkiye ile Yunan adaları arasındaki
+# açık deniz koridorunu yansıtıyor. Bodrum ve Marmaris limanları görünüyor
+# çünkü Kos/Rodos alıcılarının menzili bu limanlara ulaşıyor.
 LON_MIN = 26.5
 LAT_MIN = 36.0
 LAT_MAX = 38.0

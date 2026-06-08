@@ -84,11 +84,10 @@ def render_sidebar(df: pd.DataFrame):
     st.sidebar.markdown("---")
     st.sidebar.caption(
         "**Data source:** AISStream.io live feed  \n"
-        "**Coverage:** ~60 min · evening (19:00–20:00)  \n"
-        "**Geographic scope:** Bodrum–Marmaris–Datça–Rhodes corridor  \n"
-        "**lat** 36–38°N · **lon** 26.5–29°E  \n\n"
-        "⚠️ **Out of scope:** İzmir, Çeşme, Kuşadası — "
-        "no AISStream receiver coverage in these areas."
+        "**Scope:** Bodrum–Kos–Rhodes corridor  \n"
+        "**lat** 36–38°N · **lon** 26.5–29°E  \n"
+        "**Snapshot:** ~60 min · evening  \n\n"
+        "⚠️ İzmir, Çeşme, Kuşadası, Çanakkale: **no coverage**"
     )
 
     return selected, speed_range, show_anchored
@@ -277,19 +276,19 @@ def render_stats_table(df: pd.DataFrame):
 # ── Ana layout ────────────────────────────────────────────────────────────────
 
 def main():
-    st.title("🚢 South Aegean AIS Traffic Analysis")
+    st.title("🚢 Bodrum–Kos–Rhodes Sea Corridor · AIS Traffic Analysis")
     st.markdown(
-        "**Bodrum – Marmaris – Datça – Rhodes Corridor** · "
-        "Live AIS data collected via [AISStream.io](https://aisstream.io) WebSocket API"
+        "Live AIS data collected via [AISStream.io](https://aisstream.io) WebSocket API · "
+        "Turkish–Greek Aegean boundary sea lane"
     )
-    st.info(
-        "⚠️ **Coverage note:** Geographic scope is limited to the southern Turkish Aegean "
-        "(lat 36–38°N, lon 26.5–29°E). "
-        "İzmir, Çeşme, and Kuşadası are **not covered** — AISStream.io has no terrestrial "
-        "receivers in those areas on the free plan. "
-        "Marmara Sea / Çanakkale traffic is excluded as a separate maritime basin. "
-        "Data represents a single ~60-minute evening snapshot.",
-        icon="ℹ️",
+    st.warning(
+        "**Coverage note:** This dataset captures the **Bodrum–Kos–Rhodes open-sea corridor** "
+        "(lat 36–38°N, lon 26.5–29°E), not the full Turkish Aegean coast. "
+        "AISStream.io receivers are located primarily on Greek islands (Kos, Rhodes), so signals "
+        "reach nearby sea lanes and the ports of Bodrum and Marmaris — but **İzmir, Çeşme, "
+        "Kuşadası, and Çanakkale have zero coverage** in this dataset. "
+        "Istanbul/Marmara traffic (lat ~41°N) was excluded as a separate maritime basin. "
+        "Single ~60-minute evening snapshot (19:00–20:00 local time).",
     )
 
     df_full = load_data()

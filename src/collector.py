@@ -21,10 +21,14 @@ load_dotenv()
 API_KEY = os.getenv("AISSTREAM_API_KEY")
 
 # AISStream format: [min_lat, min_lon], [max_lat, max_lon]
-# Güney Türk Ege kıyısı: Bodrum–Marmaris–Datça–Rodos koridoru
-# NOT: AISStream.io ücretsiz planında İzmir/Çeşme/Kuşadası bölgesinde
-# yeterli alıcı istasyonu yok; kuzey (Marmara/Çanakkale) ayrı bir bölgedir.
-# Bu bounding box gerçek kapsam alanını yansıtır.
+#
+# KAPSAM: Bodrum–Kos–Rodos deniz koridoru
+# (Türk-Yunan Ege sınır hattındaki açık deniz trafiği)
+#
+# NEDEN BU ALAN?
+# AISStream.io alıcıları büyük ölçüde Yunan adalarında (Kos, Rodos vb.)
+# konumlandığından sinyal bu koridor için güvenilir; Türk anakarası
+# kıyıları (İzmir, Çeşme, Kuşadası, Çanakkale) kapsam dışındadır.
 BOUNDING_BOX = [[36.0, 26.5], [38.0, 29.0]]
 
 WEBSOCKET_URL = "wss://stream.aisstream.io/v0/stream"

@@ -47,19 +47,19 @@ COVERAGE_NOTE = """
 ╔══════════════════════════════════════════════════════════════════╗
 ║  VERİ KAPSAM UYARISI — okumadan analiz etme                     ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  Kapsam alanı : Güney Türk Ege — Bodrum / Marmaris / Datça /    ║
-║                 Kos / Rodos koridoru                             ║
-║  Koordinatlar : lat 36.0–38.0°N · lon 26.5–29.0°E              ║
+║  GERÇEK KAPSAM:                                                  ║
+║  Bodrum–Kos–Rodos deniz koridoru                                 ║
+║  (Türk-Yunan Ege sınır hattındaki açık deniz trafiği)           ║
+║  Koordinatlar: lat 36.0–38.0°N · lon 26.5–29.0°E               ║
 ║                                                                  ║
-║  DIŞARIDA KALANLAR (kapsam boşluğu, kod hatası değil):          ║
-║  · İzmir Körfezi, Çeşme, Kuşadası (38–38.5°N) →                ║
-║      AISStream.io ücretsiz planında alıcı yok                   ║
-║  · Yalıkavak / Turgutreis (37.1–37.2°N) → sinyal zayıf         ║
-║  · Marmara Denizi / Çanakkale (41°N) → ayrı deniz havzası,      ║
-║      bu analize dahil edilmedi                                   ║
+║  BU ANALİZ "TÜRK EGE KIYILARI" DEĞİL:                          ║
+║  · AISStream.io alıcıları Yunan adalarında (Kos, Rodos)         ║
+║  · İzmir, Çeşme, Kuşadası, Çanakkale → sıfır veri              ║
+║  · Bodrum/Marmaris görünüyor çünkü adalara yakın                ║
+║  · İstanbul/Marmara (41°N) verisi kapsam dışı bırakıldı        ║
 ║                                                                  ║
-║  Örneklem : ~60 dakika · akşam saatleri (19:00–20:00 UTC+3)     ║
-║  Feribot ve yat sayısı sabah/öğle verisiyle değişebilir.        ║
+║  Örneklem: ~60 dk · akşam (19:00–20:00 UTC+3)                  ║
+║  80 tekil gemi · 1.263 konum raporu                             ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -153,8 +153,8 @@ def plot_speed_distributions(df: pd.DataFrame):
 
     sns.violinplot(
         data=df_speed, x="ship_category", y="speed_knots",
-        order=order, palette=palette,
-        inner="box", cut=0, ax=ax
+        hue="ship_category", order=order, palette=palette,
+        inner="box", cut=0, ax=ax, legend=False
     )
 
     ax.set_xlabel("Ship Category")
@@ -236,7 +236,7 @@ def print_key_findings(df: pd.DataFrame):
     Her bulgu yanına örneklem sınırı notu ekliyoruz.
     """
     print("\n" + "="*60)
-    print("ANA BULGULAR  (örneklem: ~60 dk, Türk Ege kıyıları)")
+    print("ANA BULGULAR  (örneklem: ~60 dk, Bodrum–Kos–Rodos koridoru)")
     print("="*60)
 
     # 1. Dominant kategori
@@ -263,20 +263,20 @@ def print_key_findings(df: pd.DataFrame):
     print(spd.round(2).to_string())
     print("  → Neden medyan? Demir atan gemiler (hız=0) ortalamayı çarpıtır.")
 
-    # 4. Türk / Yunan tarafı oranı
+    # 4. Koridor içi / dışı oranı
     conn = sqlite3.connect(DB_PATH)
     total_raw = pd.read_sql(
         "SELECT COUNT(*) as n FROM ais_raw WHERE message_type='PositionReport'",
         conn
     ).iloc[0, 0]
     conn.close()
-    turkish = len(df)
-    greek   = total_raw - turkish
-    print(f"\n[4] Ege trafiği coğrafi dağılımı (lon < / ≥ 26°E):")
-    print(f"    Yunan tarafı  : {greek:,}  pozisyon raporu (%{greek/total_raw*100:.0f})")
-    print(f"    Türk tarafı   : {turkish:,}  pozisyon raporu (%{turkish/total_raw*100:.0f})")
-    print(f"    ⚠ Örneklem sınırı: tek günlük, tek saatlik aralık. "
-          f"Mevsimsel ve günlük örüntü için ek oturum gerekli.")
+    corridor = len(df)
+    outside  = total_raw - corridor
+    print(f"\n[4] Ham veri coğrafi dağılımı:")
+    print(f"    Koridor dışı (Pire, İstanbul vb.) : {outside:,} rapor (%{outside/total_raw*100:.0f})")
+    print(f"    Bodrum–Kos–Rodos koridoru         : {corridor:,} rapor (%{corridor/total_raw*100:.0f})")
+    print(f"    ⚠ Örneklem sınırı: tek günlük, akşam saati anlık görüntüsü. "
+          f"Sabah ve öğle oturumları için ek toplama gerekli.")
 
     # 5. Hız IQR özeti
     cargo_spd = df[
