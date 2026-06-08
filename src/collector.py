@@ -1,13 +1,13 @@
 """
 AIS Live Data Collector — Aegean Sea
-Connects to AISStream.io WebSocket API and writes incoming messages to CSV.
+Connects to AISStream.io WebSocket API and writes incoming messages
+directly to a SQLite database (ais_aegean.db).
 """
 
 import asyncio
 import json
-import csv
 import os
-import signal
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,48 +20,80 @@ from dotenv import load_dotenv
 load_dotenv()
 API_KEY = os.getenv("AISSTREAM_API_KEY")
 
-# Aegean Sea bounding box: [min_lon, min_lat], [max_lon, max_lat]
-# Batı Ege (Yunanistan kıyıları) ile Doğu Ege (Türkiye kıyıları) arası tam kapsam
-BOUNDING_BOX = [[36.0, 22.0], [41.5, 29.0]]  # [min_lat, min_lon], [max_lat, max_lon]
+# AISStream format: [min_lat, min_lon], [max_lat, max_lon]
+# Ege Denizi tam kapsam — Çanakkale'den Rodos'a, Türkiye-Yunanistan arası
+BOUNDING_BOX = [[36.0, 22.0], [41.5, 29.0]]
 
 WEBSOCKET_URL = "wss://stream.aisstream.io/v0/stream"
 
-# Varsayılan toplama süresi: 20 dakika (test için). Daha uzun için argüman geç.
 DEFAULT_DURATION_MINUTES = 20
 
-OUTPUT_DIR = Path(__file__).parent.parent / "data" / "raw"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "ais_aegean.db"
 
-# CSV sütunları — her satır bir AIS mesajı
-CSV_COLUMNS = [
-    "timestamp_utc",
-    "mmsi",
-    "ship_name",
-    "ship_type_code",
-    "latitude",
-    "longitude",
-    "speed_knots",
-    "course_deg",
-    "heading_deg",
-    "nav_status",
-    "message_type",
-]
+# ── SQLite kurulumu ───────────────────────────────────────────────────────────
+
+def init_db(conn: sqlite3.Connection):
+    """
+    Tablo yoksa oluştur. IF NOT EXISTS sayesinde her çalıştırmada
+    mevcut verinin üstüne yazmaz — oturumlar birikerek büyür.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS ais_raw (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp_utc    TEXT    NOT NULL,
+            session_id       TEXT    NOT NULL,
+            mmsi             TEXT,
+            ship_name        TEXT,
+            ship_type_code   INTEGER,
+            latitude         REAL,
+            longitude        REAL,
+            speed_knots      REAL,
+            course_deg       REAL,
+            heading_deg      REAL,
+            nav_status       INTEGER,
+            message_type     TEXT
+        )
+    """)
+    # MMSI'ya index: join ve filtre sorgularını hızlandırır
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_mmsi
+        ON ais_raw (mmsi)
+    """)
+    # Zaman sorgularına index
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_timestamp
+        ON ais_raw (timestamp_utc)
+    """)
+    conn.commit()
+
+
+def insert_row(conn: sqlite3.Connection, row: dict):
+    conn.execute("""
+        INSERT INTO ais_raw (
+            timestamp_utc, session_id, mmsi, ship_name, ship_type_code,
+            latitude, longitude, speed_knots, course_deg,
+            heading_deg, nav_status, message_type
+        ) VALUES (
+            :timestamp_utc, :session_id, :mmsi, :ship_name, :ship_type_code,
+            :latitude, :longitude, :speed_knots, :course_deg,
+            :heading_deg, :nav_status, :message_type
+        )
+    """, row)
 
 # ── Subscription mesajı ───────────────────────────────────────────────────────
 
 def build_subscription():
-    """AISStream.io'ya gönderilecek filtre mesajı."""
     return {
         "APIKey": API_KEY,
         "BoundingBoxes": [BOUNDING_BOX],
-        # Sadece konum ve statik veri mesajlarını istiyoruz
         "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
     }
 
 # ── Mesaj ayrıştırıcılar ──────────────────────────────────────────────────────
 
-def parse_position_report(msg: dict, metadata: dict) -> dict | None:
-    """PositionReport (tip 1/2/3) → düz satır."""
+def parse_position_report(msg: dict, metadata: dict, session_id: str) -> dict | None:
     pr = msg.get("Message", {}).get("PositionReport", {})
     if not pr:
         return None
@@ -69,53 +101,45 @@ def parse_position_report(msg: dict, metadata: dict) -> dict | None:
     lat = pr.get("Latitude")
     lon = pr.get("Longitude")
 
-    # Geçersiz koordinat kontrolü — AIS'te 91.0/181.0 "veri yok" anlamına gelir
+    # AIS'te 91.0 / 181.0 "bilinmiyor" anlamına gelir
     if lat is None or lon is None or abs(lat) > 90 or abs(lon) > 180:
         return None
 
     return {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "mmsi": metadata.get("MMSI"),
-        "ship_name": metadata.get("ShipName", "").strip(),
-        "ship_type_code": None,          # PositionReport'ta tip yok; join edilecek
-        "latitude": lat,
-        "longitude": lon,
-        "speed_knots": pr.get("Sog"),    # Speed Over Ground
-        "course_deg": pr.get("Cog"),     # Course Over Ground
-        "heading_deg": pr.get("TrueHeading"),
-        "nav_status": pr.get("NavigationalStatus"),
-        "message_type": "PositionReport",
+        "timestamp_utc":  datetime.now(timezone.utc).isoformat(),
+        "session_id":     session_id,
+        "mmsi":           str(metadata.get("MMSI", "")),
+        "ship_name":      metadata.get("ShipName", "").strip(),
+        "ship_type_code": None,
+        "latitude":       lat,
+        "longitude":      lon,
+        "speed_knots":    pr.get("Sog"),
+        "course_deg":     pr.get("Cog"),
+        "heading_deg":    pr.get("TrueHeading"),
+        "nav_status":     pr.get("NavigationalStatus"),
+        "message_type":   "PositionReport",
     }
 
-def parse_ship_static(msg: dict, metadata: dict) -> dict | None:
-    """ShipStaticData (tip 5/24) → düz satır (konum içermez)."""
+
+def parse_ship_static(msg: dict, metadata: dict, session_id: str) -> dict | None:
     ss = msg.get("Message", {}).get("ShipStaticData", {})
     if not ss:
         return None
 
     return {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "mmsi": metadata.get("MMSI"),
-        "ship_name": ss.get("Name", "").strip(),
+        "timestamp_utc":  datetime.now(timezone.utc).isoformat(),
+        "session_id":     session_id,
+        "mmsi":           str(metadata.get("MMSI", "")),
+        "ship_name":      ss.get("Name", "").strip(),
         "ship_type_code": ss.get("Type"),
-        "latitude": None,
-        "longitude": None,
-        "speed_knots": None,
-        "course_deg": None,
-        "heading_deg": None,
-        "nav_status": None,
-        "message_type": "ShipStaticData",
+        "latitude":       None,
+        "longitude":      None,
+        "speed_knots":    None,
+        "course_deg":     None,
+        "heading_deg":    None,
+        "nav_status":     None,
+        "message_type":   "ShipStaticData",
     }
-
-# ── CSV yardımcıları ─────────────────────────────────────────────────────────
-
-def open_csv_writer(filepath: Path):
-    """CSV dosyasını aç, başlık satırını yaz."""
-    f = open(filepath, "w", newline="", encoding="utf-8")
-    writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
-    writer.writeheader()
-    f.flush()
-    return f, writer
 
 # ── Ana toplama döngüsü ───────────────────────────────────────────────────────
 
@@ -125,18 +149,17 @@ async def collect(duration_minutes: int):
         sys.exit(1)
 
     session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    csv_path = OUTPUT_DIR / f"ais_aegean_{session_id}.csv"
+    end_time   = asyncio.get_event_loop().time() + duration_minutes * 60
 
     print(f"[{session_id}] Toplama başlıyor — süre: {duration_minutes} dakika")
-    print(f"Bounding box: {BOUNDING_BOX}")
-    print(f"Çıktı dosyası: {csv_path}\n")
+    print(f"Bounding box : {BOUNDING_BOX}")
+    print(f"Veritabanı   : {DB_PATH}\n")
 
-    end_time = asyncio.get_event_loop().time() + duration_minutes * 60
+    conn = sqlite3.connect(DB_PATH)
+    init_db(conn)
 
     total_messages = 0
     unique_mmsi: set[str] = set()
-
-    csv_file, writer = open_csv_writer(csv_path)
 
     try:
         while asyncio.get_event_loop().time() < end_time:
@@ -145,21 +168,9 @@ async def collect(duration_minutes: int):
                     await ws.send(json.dumps(build_subscription()))
                     print("WebSocket bağlantısı kuruldu. Veri bekleniyor...")
 
-                    last_message_time = asyncio.get_event_loop().time()
-                    first_timeout = True
+                    batch: list[dict] = []
 
-                    while asyncio.get_event_loop().time() < end_time:
-                        try:
-                            raw = await asyncio.wait_for(ws.recv(), timeout=15)
-                        except asyncio.TimeoutError:
-                            if total_messages == 0 and first_timeout:
-                                print("Henüz Aegean bölgesinden veri gelmedi; bağlantı kurulmuş, izleme sürüyor...")
-                                first_timeout = False
-                            elif total_messages > 0:
-                                print("15 saniyede yeni mesaj gelmedi; bağlantı açık, bekleniyor...")
-                            continue
-
-                        # Süre doldu mu?
+                    async for raw in ws:
                         if asyncio.get_event_loop().time() >= end_time:
                             break
 
@@ -172,27 +183,31 @@ async def collect(duration_minutes: int):
                         metadata = msg.get("MetaData", {})
 
                         if msg_type == "PositionReport":
-                            row = parse_position_report(msg, metadata)
+                            row = parse_position_report(msg, metadata, session_id)
                         elif msg_type == "ShipStaticData":
-                            row = parse_ship_static(msg, metadata)
+                            row = parse_ship_static(msg, metadata, session_id)
                         else:
                             continue
 
                         if row is None:
                             continue
 
-                        writer.writerow(row)
+                        batch.append(row)
                         total_messages += 1
-                        csv_file.flush()
-                        last_message_time = asyncio.get_event_loop().time()
+                        if row["mmsi"]:
+                            unique_mmsi.add(row["mmsi"])
 
-                        mmsi = str(row["mmsi"] or "")
-                        if mmsi:
-                            unique_mmsi.add(mmsi)
+                        # Her 50 mesajda toplu yazma (disk I/O azaltır)
+                        if len(batch) >= 50:
+                            for r in batch:
+                                insert_row(conn, r)
+                            conn.commit()
+                            batch.clear()
 
-                        # Her 100 mesajda bir canlı log
                         if total_messages % 100 == 0:
-                            elapsed = duration_minutes * 60 - (end_time - asyncio.get_event_loop().time())
+                            elapsed = duration_minutes * 60 - (
+                                end_time - asyncio.get_event_loop().time()
+                            )
                             print(
                                 f"  [{int(elapsed):>4}s] "
                                 f"Mesaj: {total_messages:>6} | "
@@ -200,9 +215,16 @@ async def collect(duration_minutes: int):
                                 f"Son: {row.get('ship_name') or row.get('mmsi')}"
                             )
 
-            except (websockets.exceptions.ConnectionClosed,
-                    websockets.exceptions.WebSocketException,
-                    OSError) as e:
+                    # Döngü bitti — kalan batch'i yaz
+                    for r in batch:
+                        insert_row(conn, r)
+                    conn.commit()
+
+            except (
+                websockets.exceptions.ConnectionClosed,
+                websockets.exceptions.WebSocketException,
+                OSError,
+            ) as e:
                 remaining = end_time - asyncio.get_event_loop().time()
                 if remaining <= 0:
                     break
@@ -210,20 +232,24 @@ async def collect(duration_minutes: int):
                 await asyncio.sleep(5)
 
     finally:
-        csv_file.flush()
-        csv_file.close()
+        # Son kontrol sorgusu
+        cursor = conn.execute("SELECT COUNT(*) FROM ais_raw WHERE session_id = ?",
+                              (session_id,))
+        db_count = cursor.fetchone()[0]
+        conn.close()
+
         print(f"\nToplama tamamlandı.")
-        print(f"  Toplam mesaj : {total_messages}")
-        print(f"  Tekil gemi   : {len(unique_mmsi)}")
-        print(f"  Dosya        : {csv_path}")
+        print(f"  Toplam mesaj      : {total_messages}")
+        print(f"  Tekil gemi        : {len(unique_mmsi)}")
+        print(f"  DB'ye yazılan satır: {db_count}")
+        print(f"  Veritabanı         : {DB_PATH}")
+        print(f"  Session ID         : {session_id}")
 
 # ── Giriş noktası ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # İsteğe bağlı: python collector.py 60  → 60 dakika topla
     duration = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DURATION_MINUTES
 
-    # Ctrl+C ile temiz kapanma
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
