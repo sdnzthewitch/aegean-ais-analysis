@@ -1,5 +1,7 @@
 # Bodrum–Kos–Rhodes Sea Corridor · AIS Traffic Analysis
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://aegean-ais-analysis-drkhjf4q8jslmuxyn9clae.streamlit.app/)
+
 Live AIS vessel traffic analysis for the Turkish–Greek Aegean boundary
 sea lane, collected via the [AISStream.io](https://aisstream.io) WebSocket API.
 
