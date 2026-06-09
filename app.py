@@ -23,7 +23,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-DB_PATH = Path(__file__).parent / "data" / "ais_aegean.db"
+DB_PATH  = Path(__file__).parent / "data" / "ais_aegean.db"
+CSV_PATH = Path(__file__).parent / "data" / "ais_clean.csv"
 
 CATEGORY_COLORS = {
     "Cargo":          "#2196F3",
@@ -43,14 +44,30 @@ CATEGORY_COLORS = {
 
 @st.cache_data(ttl=300)   # 5 dakikada bir taze veri çek
 def load_data() -> pd.DataFrame:
-    if not DB_PATH.exists():
+    if DB_PATH.exists():
+        conn = sqlite3.connect(DB_PATH)
+        df = pd.read_sql("SELECT * FROM ais_clean", conn, dtype={"mmsi": str})
+        conn.close()
+    elif CSV_PATH.exists():
+        df = pd.read_csv(CSV_PATH, dtype={"mmsi": str})
+    else:
         return pd.DataFrame()
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql("SELECT * FROM ais_clean", conn, dtype={"mmsi": str})
-    conn.close()
     df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
     df["hour"] = df["timestamp_utc"].dt.hour
     return df
+
+
+@st.cache_data(ttl=300)
+def load_raw_count() -> int:
+    """Total raw PositionReport count — for pie chart. Returns -1 if unavailable."""
+    if not DB_PATH.exists():
+        return -1
+    conn = sqlite3.connect(DB_PATH)
+    n = conn.execute(
+        "SELECT COUNT(*) FROM ais_raw WHERE message_type='PositionReport'"
+    ).fetchone()[0]
+    conn.close()
+    return n
 
 # ── Sidebar — filtreler ───────────────────────────────────────────────────────
 
@@ -86,7 +103,8 @@ def render_sidebar(df: pd.DataFrame):
         "**Data source:** AISStream.io live feed  \n"
         "**Scope:** Bodrum–Kos–Rhodes corridor  \n"
         "**lat** 36–38°N · **lon** 26.5–29°E  \n"
-        "**Snapshot:** ~60 min · evening  \n\n"
+        "**Sessions:** 8 Jun evening + 9 Jun morning  \n"
+        "**Vessels:** 118 unique · 2,267 reports  \n\n"
         "⚠️ İzmir, Çeşme, Kuşadası, Çanakkale: **no coverage**"
     )
 
@@ -224,27 +242,25 @@ def render_charts(df: pd.DataFrame, df_full: pd.DataFrame):
             st.plotly_chart(fig2, use_container_width=True)
 
     # Ege trafik dağılımı pasta grafik
-    st.subheader("🌊 Aegean Traffic Split: Greek vs Turkish Waters")
-    conn = sqlite3.connect(DB_PATH)
-    total_raw = pd.read_sql(
-        "SELECT COUNT(*) as n FROM ais_raw WHERE message_type='PositionReport'", conn
-    ).iloc[0, 0]
-    conn.close()
-
-    turkish = len(df_full)
-    greek   = max(total_raw - turkish, 0)
-    pie_df  = pd.DataFrame({
-        "Zone":    ["Greek side (lon < 26°E)", "Turkish side (lon ≥ 26°E)"],
-        "Reports": [greek, turkish],
-    })
-    fig3 = px.pie(
-        pie_df, values="Reports", names="Zone",
-        color_discrete_sequence=["#42A5F5", "#EF5350"],
-        height=320,
-    )
-    fig3.update_traces(textinfo="percent+label")
-    fig3.update_layout(margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
-    st.plotly_chart(fig3, use_container_width=True)
+    st.subheader("🌊 Corridor vs Outside: Raw AIS Position Reports")
+    total_raw = load_raw_count()
+    if total_raw > 0:
+        in_corridor = len(df_full)
+        outside     = max(total_raw - in_corridor, 0)
+        pie_df = pd.DataFrame({
+            "Zone":    ["Outside corridor (filtered out)", "Bodrum–Kos–Rhodes corridor"],
+            "Reports": [outside, in_corridor],
+        })
+        fig3 = px.pie(
+            pie_df, values="Reports", names="Zone",
+            color_discrete_sequence=["#9E9E9E", "#1A7D8E"],
+            height=320,
+        )
+        fig3.update_traces(textinfo="percent+label")
+        fig3.update_layout(margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
+        st.plotly_chart(fig3, use_container_width=True)
+    else:
+        st.info("Raw message counts unavailable in this deployment (live DB not present).")
 
 
 # ── İstatistik tablosu ────────────────────────────────────────────────────────
@@ -288,7 +304,8 @@ def main():
         "reach nearby sea lanes and the ports of Bodrum and Marmaris — but **İzmir, Çeşme, "
         "Kuşadası, and Çanakkale have zero coverage** in this dataset. "
         "Istanbul/Marmara traffic (lat ~41°N) was excluded as a separate maritime basin. "
-        "Single ~60-minute evening snapshot (19:00–20:00 local time).",
+        "Two ~60-minute sessions: **8 Jun 2026 evening** + **9 Jun 2026 morning**. "
+        "Pilot study — August 2026 replication planned.",
     )
 
     df_full = load_data()
