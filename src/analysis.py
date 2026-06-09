@@ -210,8 +210,8 @@ def plot_traffic_density(df: pd.DataFrame):
         cbar_kws={"label": "Unique Vessels per 0.25° Cell"},
     )
     ax.set_title(
-        "AIS Traffic Density — Turkish Aegean Coastal Zone\n"
-        "(0.25° × 0.25° grid · unique vessel count)"
+        "AIS Traffic Density — Bodrum–Kos–Rhodes Sea Corridor\n"
+        "(0.25° × 0.25° grid · unique vessel count · Jun 8–9, 2026)"
     )
     ax.set_xlabel("Longitude (°E)")
     ax.set_ylabel("Latitude (°N)")
@@ -290,6 +290,68 @@ def print_key_findings(df: pd.DataFrame):
 
 # ── Ana akış ─────────────────────────────────────────────────────────────────
 
+def plot_session_comparison(df: pd.DataFrame):
+    """
+    Akşam (8 Haz) vs Sabah (9 Haz) oturumu karşılaştırması.
+    Hangi gemi kategorisi hangi saatte daha aktif?
+    """
+    # session_id'den tarih+saat etiketi üret
+    session_labels = {
+        "20260608_195523": "Jun 8 · Evening (19:55–20:55)",
+        "20260609_073132": "Jun 9 · Morning (07:31–08:27)",
+    }
+
+    df2 = df.copy()
+    df2["session_label"] = df2["session_id"].map(session_labels)
+    df2 = df2[df2["session_label"].notna()]
+
+    if df2["session_label"].nunique() < 2:
+        print("  Karşılaştırma için yeterli oturum yok, atlanıyor.")
+        return
+
+    comp = (
+        df2.groupby(["session_label", "ship_category"])["mmsi"]
+        .nunique()
+        .reset_index()
+        .rename(columns={"mmsi": "unique_vessels"})
+    )
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    categories = comp.groupby("ship_category")["unique_vessels"].sum().sort_values(ascending=False).index
+    x = np.arange(len(categories))
+    width = 0.35
+
+    sessions = comp["session_label"].unique()
+    colors   = ["#1565C0", "#E65100"]
+
+    for i, (sess, color) in enumerate(zip(sessions, colors)):
+        vals = [
+            comp[(comp["session_label"] == sess) &
+                 (comp["ship_category"] == cat)]["unique_vessels"].sum()
+            for cat in categories
+        ]
+        bars = ax.bar(x + i * width, vals, width, label=sess, color=color, alpha=0.85)
+        for bar, val in zip(bars, vals):
+            if val > 0:
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1,
+                        str(val), ha="center", va="bottom", fontsize=8)
+
+    ax.set_xticks(x + width / 2)
+    ax.set_xticklabels(categories, rotation=20, ha="right")
+    ax.set_ylabel("Unique Vessels")
+    ax.set_title(
+        "Evening vs Morning Traffic — Bodrum–Kos–Rhodes Corridor\n"
+        "(Jun 8 evening · Jun 9 morning · unique vessel count)"
+    )
+    ax.legend()
+    plt.tight_layout()
+
+    path = FIGURES_DIR / "04_session_comparison.png"
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Kaydedildi: {path}")
+
+
 def main():
     print("── Veri yükleniyor ─────────────────────────────────")
     df = load_data()
@@ -298,11 +360,15 @@ def main():
     plot_ship_distribution(df)
     plot_speed_distributions(df)
     plot_traffic_density(df)
+    plot_session_comparison(df)
 
     print_key_findings(df)
 
+    print("\n── Toplama zaman çizelgesi ─────────────────────────")
+    print("  Oturum 1 : 8 Haziran 2026 · 22:55–23:55 (TSİ) · akşam")
+    print("  Oturum 2 : 9 Haziran 2026 · 10:31–11:27 (TSİ) · sabah")
+    print("  Gelecek  : Ağustos 2026 — zirve sezon karşılaştırması")
     print(f"\nTüm grafikler: {FIGURES_DIR}/")
-    print("Aşama 3 tamamlandı. Sırada: src/app.py (Streamlit dashboard)")
 
 if __name__ == "__main__":
     main()

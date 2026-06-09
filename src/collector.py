@@ -22,14 +22,11 @@ API_KEY = os.getenv("AISSTREAM_API_KEY")
 
 # AISStream format: [min_lat, min_lon], [max_lat, max_lon]
 #
-# KAPSAM: Bodrum–Kos–Rodos deniz koridoru
-# (Türk-Yunan Ege sınır hattındaki açık deniz trafiği)
-#
-# NEDEN BU ALAN?
-# AISStream.io alıcıları büyük ölçüde Yunan adalarında (Kos, Rodos vb.)
-# konumlandığından sinyal bu koridor için güvenilir; Türk anakarası
-# kıyıları (İzmir, Çeşme, Kuşadası, Çanakkale) kapsam dışındadır.
-BOUNDING_BOX = [[36.0, 26.5], [38.0, 29.0]]
+# GENİŞ TOPLAMA ALANI — cleaner.py hassas filtreyi uygular.
+# Dar bounding box AISStream'den yeterli mesaj gelmemesine yol açar;
+# bu nedenle tüm Ege toplanır, analiz koridoru cleaner'da kesilir:
+#   → lat 36.0–38.0°N, lon 26.5–29.0°E (Bodrum–Kos–Rodos)
+BOUNDING_BOX = [[36.0, 22.0], [42.0, 30.0]]
 
 WEBSOCKET_URL = "wss://stream.aisstream.io/v0/stream"
 

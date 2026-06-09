@@ -31,10 +31,15 @@ of Bodrum and Marmaris.
 ## Dataset
 
 - **Source:** AISStream.io live WebSocket feed
-- **Collection window:** ~60 minutes, evening hours (19:00–20:00 UTC+3)
-- **Vessels captured:** 80 unique MMSI
-- **Position reports:** 1,263 (after geographic and quality filters)
 - **Message types:** `PositionReport` (Type 1/2/3) + `ShipStaticData` (Type 5/24)
+
+| Session | Date | Local Time (UTC+3) | Raw Messages |
+|---|---|---|---|
+| Evening | 8 June 2026 | 22:55 – 23:55 | 12,059 |
+| Morning | 9 June 2026 | 10:31 – 11:27 | 11,381 |
+
+- **Combined clean dataset:** 118 unique vessels · 2,267 position reports
+- **Planned replication:** August 2026 — peak summer season comparison (June early-summer vs August peak)
 
 ---
 
