@@ -1,7 +1,7 @@
 .env
 venv/
 data/raw/
-# *.db  — DB repoya eklendi (Streamlit Cloud deployment)
+*.db
 __pycache__/
 *.pyc
 .DS_Store

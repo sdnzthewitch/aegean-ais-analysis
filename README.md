@@ -47,20 +47,25 @@ of Bodrum and Marmaris.
 
 ## Key Findings
 
-1. **Cargo vessels dominate** the corridor — the largest category by both
-   vessel count and position reports, reflecting the İzmir–Piraeus and
-   Asia–Europe container routes passing through the Dodecanese.
+1. **Pleasure Craft is the dominant identified vessel category** (28 vessels),
+   consistent with the Bodrum peninsula's status as a major Aegean yacht charter hub.
+   Leisure vessels (Pleasure Craft + Sailing Yacht) account for **29.7% of all observed
+   vessels** and **37.6% of vessels with an identified type**.
 
-2. **~16% leisure traffic** (Pleasure Craft + Sailing Yacht) — consistent
-   with the Bodrum peninsula being a major Aegean charter hub in summer.
+2. **Passenger ferries show a time-of-day pattern**: 13 vessels in the evening session
+   vs. 15 in the morning session — consistent with scheduled morning departures on
+   routes such as Bodrum–Kos and Marmaris–Rhodes.
 
-3. **Median cargo speed: 10.9 kn** (IQR 7.7–12.6 kn). Median used instead
-   of mean because speed distributions are right-skewed; anchored vessels
-   (speed = 0) would pull the mean down disproportionately.
+3. **Median cargo speed: 11.0 kn** (IQR 8.7–12.0 kn). Median used instead of mean
+   because speed distributions are right-skewed; anchored vessels (speed = 0) would
+   pull the mean down disproportionately.
 
-4. **Single evening snapshot caveat:** Passenger ferry counts are likely
-   underrepresented — daily routes (Bodrum–Kos, Marmaris–Rhodes) typically
-   depart in the morning and return in the afternoon.
+4. **Passenger vessels recorded the highest median speed among identified categories
+   (15.0 kn)**, likely reflecting high-speed catamaran ferry services operating in
+   the corridor. This finding warrants further investigation with larger samples.
+
+5. **Coverage caveat:** 21% of vessels remain "Unknown" (no ShipStaticData received).
+   İzmir, Çeşme, Kuşadası, and Çanakkale have zero coverage in this dataset.
 
 ---
 

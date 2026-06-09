@@ -58,8 +58,8 @@ COVERAGE_NOTE = """
 ║  · Bodrum/Marmaris görünüyor çünkü adalara yakın                ║
 ║  · İstanbul/Marmara (41°N) verisi kapsam dışı bırakıldı        ║
 ║                                                                  ║
-║  Örneklem: ~60 dk · akşam (19:00–20:00 UTC+3)                  ║
-║  80 tekil gemi · 1.263 konum raporu                             ║
+║  Örneklem: 2 oturum · 8–9 Haz 2026 · akşam + sabah              ║
+║  118 tekil gemi · 2.267 konum raporu                            ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -246,10 +246,12 @@ def print_key_findings(df: pd.DataFrame):
     print(f"\n[1] Dominant gemi tipi: {top_cat} "
           f"({top_n}/{total_v} gemi, %{top_n/total_v*100:.0f})")
 
-    # 2. Yat + eğlence oranı
-    leisure = df[df["ship_category"].isin(["Pleasure Craft", "Sailing Yacht"])]["mmsi"].nunique()
-    print(f"[2] Yat / eğlence teknesi: {leisure} gemi "
-          f"(%{leisure/total_v*100:.0f} — yaz sezonu sinyali)")
+    # 2. Yat + eğlence oranı — iki payda ile hesapla, hangisini kullandığını belirt
+    leisure    = df[df["ship_category"].isin(["Pleasure Craft", "Sailing Yacht"])]["mmsi"].nunique()
+    identified = df[df["ship_category"] != "Unknown"]["mmsi"].nunique()
+    print(f"[2] Yat / eğlence teknesi: {leisure}/{total_v} gemi "
+          f"(%{leisure/total_v*100:.1f} tüm gemiler; "
+          f"%{leisure/identified*100:.1f} tanımlı gemiler) — yaz sezonu sinyali")
 
     # 3. Medyan hızlar
     print("\n[3] Medyan hız (seyir halindeki gemiler, speed > 0.5 kn):")
@@ -275,8 +277,8 @@ def print_key_findings(df: pd.DataFrame):
     print(f"\n[4] Ham veri coğrafi dağılımı:")
     print(f"    Koridor dışı (Pire, İstanbul vb.) : {outside:,} rapor (%{outside/total_raw*100:.0f})")
     print(f"    Bodrum–Kos–Rodos koridoru         : {corridor:,} rapor (%{corridor/total_raw*100:.0f})")
-    print(f"    ⚠ Örneklem sınırı: tek günlük, akşam saati anlık görüntüsü. "
-          f"Sabah ve öğle oturumları için ek toplama gerekli.")
+    print(f"    ⚠ Örneklem sınırı: 2 oturum, tek gün (8-9 Haz 2026). "
+          f"Mevsimsel ve haftalık örüntüler için ek toplama gerekli.")
 
     # 5. Hız IQR özeti
     cargo_spd = df[
